@@ -29,7 +29,7 @@ if st.session_state.running:
 
     # 🔥 Critical: lock axis ranges (prevents jitter)
     fig.update_layout(
-        xaxis=dict(range=[0, 60], fixedrange=True),
+        #xaxis=dict(range=[0, 60], fixedrange=True),
         yaxis=dict(range=[30, 90], fixedrange=True),
         template="plotly_dark",
         margin=dict(l=20, r=20, t=40, b=20),
