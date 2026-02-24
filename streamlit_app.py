@@ -48,7 +48,7 @@ if st.session_state.running:
     data_x = []
     data_y = []
 
-    for t in np.arange(0, changeend + 4, 0.1):
+    for t in np.arange(0, changeend + 4, 0.5):
         if t < changestart:
             price = 40 + np.random.uniform(-0.2, 0.2)
             if changestart - t < 5:
