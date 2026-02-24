@@ -1,11 +1,11 @@
 import streamlit as st
 import numpy as np
-import plotly.graph_objects as go
+import pandas as pd
 import time
 
 st.title("Live Electricity Price")
 
-# Split the layout into two equal columns
+# Split the layout into two columns
 left, right = st.columns(2)
 
 # Initialize session state
@@ -22,33 +22,15 @@ with left:
         middle = (changestart + changeend) / 2
         k = -np.log(1/0.99 - 1) / (changeend - middle)
 
-# Place the plot in the right column
+# Place the chart in the right column
 with right:
     placeholder = st.empty()
 
 if st.session_state.running:
-    # Create figure and trace ONCE
-    fig = go.Figure()
-    fig.add_trace(
-        go.Scatter(
-            x=[],
-            y=[],
-            mode="lines",
-            line=dict(width=4, color="blue"),
-        )
-    )
+    # Initialize DataFrame
+    df = pd.DataFrame(columns=["time", "price"])
 
-    # Lock axis ranges
-    fig.update_layout(
-        yaxis=dict(range=[0, 90], fixedrange=True),
-        template="plotly_dark",
-        margin=dict(l=20, r=20, t=40, b=20),
-    )
-
-    data_x = []
-    data_y = []
-
-    for t in np.arange(0, changeend + 4, 0.5):
+    for t in np.arange(0, changeend + 4, 0.5):  # Larger step for smoother mobile updates
         if t < changestart:
             price = 40 + np.random.uniform(-0.2, 0.2)
             if changestart - t < 5:
@@ -58,28 +40,14 @@ if st.session_state.running:
         else:
             price = 40 + totalchange + np.random.uniform(-0.2, 0.2)
 
-        data_x.append(t)
-        data_y.append(price)
+        # Append new data
+        new_row = {"time": t, "price": price}
+        df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
 
-        # Update only the data, not the entire figure
-        fig.data[0].x = data_x
-        fig.data[0].y = data_y
-
-        if t > changestart and t < changeend and len(data_y) > 5:
-            if price > max(data_y[-5:]):
-                fig.data[0].line.color = "red"  # increasing
-            elif price < min(data_y[-5:]):
-                fig.data[0].line.color = "green"  # decreasing
-            else:
-                fig.data[0].line.color = "blue"  # neutral
-
+        # Update the chart
         with right:
-            placeholder.plotly_chart(
-                fig,
-                use_container_width=True,
-                config={"scrollZoom": False},
-            )
+            placeholder.line_chart(df, x="time", y="price", use_container_width=True)
 
-        time.sleep(0.04)
+        time.sleep(0.05)  # Slower updates for mobile
 
-    st.error("⚠️ Price Surge Detected")
+    st.success("✅ Simulation complete!")
