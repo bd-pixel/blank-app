@@ -2,52 +2,105 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import time
+import altair as alt
 
-st.title("Live Electricity Price")
+st.title("Live Electricity Price – Streaming")
 
-# Split the layout into two columns
 left, right = st.columns(2)
 
-# Initialize session state
 if "running" not in st.session_state:
     st.session_state.running = False
 
-# Place the button in the left column
 with left:
     if st.button("Start Simulation"):
         st.session_state.running = True
-        totalchange = np.random.uniform(-30, 40)
-        changestart = np.random.uniform(5, 20)
-        changeend = changestart + np.random.uniform(5, 20)
-        middle = (changestart + changeend) / 2
-        k = -np.log(1/0.99 - 1) / (changeend - middle)
+        
+totalchange = np.random.uniform(-30, 40)
+changestart = np.random.uniform(5, 20)
+changeend = changestart + np.random.uniform(5, 20)
+middle = (changestart + changeend) / 2
+k = -np.log(1/0.99 - 1) / (changeend - middle)
 
-# Place the chart in the right column
 with right:
     placeholder = st.empty()
+    progress_bar = st.progress(0)
 
+# ----------------------------
+# STREAMING PARAMETERS
+# ----------------------------
+WINDOW_SECONDS = 15
+DT = 0.2
+Y_DOMAIN = [0, 90]
+MAX_TIME = changeend + 4
+
+# ----------------------------
+# RUN SIMULATION
+# ----------------------------
 if st.session_state.running:
-    # Initialize DataFrame
-    df = pd.DataFrame(columns=["time", "price"])
+    times = []
+    prices = []
 
-    for t in np.arange(0, changeend + 4, 0.5):  # Larger step for smoother mobile updates
+    t = 0.0
+    while t <= MAX_TIME:
+
+        # --- price model ---
         if t < changestart:
-            price = 40 + np.random.uniform(-0.2, 0.2)
-            if changestart - t < 5:
-                price = 40 + totalchange/8 * np.sin(np.random.normal(0, 1)/5) + np.random.normal(0, 0.2)
-        elif t > changestart and t < changeend:
-            price = 40 + (totalchange / (1 + np.exp(-k * (t - middle)))) + np.random.uniform(-0.2, 0.2)
+            price = 40 + np.random.normal(0, 0.2)
+        elif changestart <= t <= changeend:
+            price = 40 + totalchange / (1 + np.exp(-k * (t - middle))) + np.random.normal(0, 0.2)
         else:
-            price = 40 + totalchange + np.random.uniform(-0.2, 0.2)
+            price = 40 + totalchange + np.random.normal(0, 0.2)
 
-        # Append new data
-        new_row = {"time": t, "price": price}
-        df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+        # --- append to stream ---
+        times.append(t)
+        prices.append(price)
 
-        # Update the chart
-        with right:
-            placeholder.line_chart(df, x="time", y="price", use_container_width=True)
+        # --- streaming window ---
+        window_start = max(0, t - WINDOW_SECONDS)
+        mask = [ti >= window_start for ti in times]
 
-        time.sleep(0.05)  # Slower updates for mobile
+        df = pd.DataFrame({
+            "time": np.array(times)[mask],
+            "price": np.array(prices)[mask]
+        })
+
+        # --- chart ---
+        line = alt.Chart(df).mark_line(
+            color="steelblue",
+            strokeWidth=3
+        ).encode(
+            x=alt.X(
+                "time:Q",
+                scale=alt.Scale(domain=[window_start, window_start + WINDOW_SECONDS], nice=False),
+                title="Time"
+            ),
+            y=alt.Y(
+                "price:Q",
+                scale=alt.Scale(domain=Y_DOMAIN, nice=False),
+                title="Price (€/MWh)"
+            )
+        ).properties(
+            height=400
+        )
+
+        latest_point = alt.Chart(df.tail(1)).mark_point(
+            color="red",
+            size=100
+        ).encode(
+            x="time:Q",
+            y="price:Q"
+        )
+
+        chart = (line + latest_point).properties(
+            title="Live Electricity Price (Streaming Window)"
+        )
+
+        placeholder.altair_chart(chart, use_container_width=True)
+
+        # --- progress ---
+        progress_bar.progress(int((t / MAX_TIME) * 100))
+
+        time.sleep(0.05)
+        t += DT
 
     st.success("✅ Simulation complete!")
