@@ -80,6 +80,6 @@ if st.session_state.running:
                 config={"scrollZoom": False},
             )
 
-        time.sleep(0.01)
+        time.sleep(0.04)
 
     st.error("⚠️ Price Surge Detected")
